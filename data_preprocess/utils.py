@@ -8,28 +8,35 @@ from data_preprocess.prompt import prompt_critic_system, prompt_critic_user
 
 
 class ActionType(Enum):
-    Idle=0
-    DualPoint=1
-    Type=2
-    GoBack=3
-    GoHome=4
-    Enter=5
-    TaskComplete=6
-    TaskImpossible=7
-    Up=8
-    Down=9
-    Left=10
-    Right=11
+    """
+    动作类型枚举类，定义了所有可能的操作类型
+    """
+    Idle=0          # 空闲状态
+    DualPoint=1     # 点击操作（触摸和抬起）
+    Type=2          # 输入文本
+    GoBack=3        # 返回操作
+    GoHome=4        # 回到主页
+    Enter=5         # 回车键
+    TaskComplete=6  # 任务完成
+    TaskImpossible=7 # 任务无法完成
+    Up=8            # 向上滑动
+    Down=9          # 向下滑动
+    Left=10         # 向左滑动
+    Right=11        # 向右滑动
 
 
 @dataclass
 class AndroidAction():
-    action_type: ActionType
-    touch_point: Tuple[float, float] = None
-    lift_point: Tuple[float, float] = None
-    typed_text: str = None
+    """
+    安卓操作的数据类，包含操作类型和相关参数
+    """
+    action_type: ActionType                  # 操作类型
+    touch_point: Tuple[float, float] = None  # 触摸点坐标 (x, y)
+    lift_point: Tuple[float, float] = None   # 抬起点坐标 (x, y)
+    typed_text: str = None                   # 输入的文本内容
 
 
+# 操作类型的字典映射，将字符串映射到对应的操作类型
 action_type_dict = {
     "type": "TYPE",
     "click": "DUAL_POINT",
@@ -45,6 +52,7 @@ action_type_dict = {
 }
 
 
+# 滑动操作的坐标映射，定义了不同滑动方向的起点和终点坐标
 scroll_map = {
     "up": [[0.8000, 0.5000], [0.2000, 0.5000]],
     "down": [[0.2000, 0.5000], [0.8000, 0.5000]],
@@ -54,6 +62,15 @@ scroll_map = {
 
 
 def extract_scroll(action):
+    """
+    从触摸和抬起点判断滑动方向，并更新操作类型
+    
+    参数:
+        action: AndroidAction对象
+    
+    返回:
+        更新了action_type的AndroidAction对象
+    """
     if action.touch_point == action.lift_point:
         return action
     
@@ -69,6 +86,16 @@ def extract_scroll(action):
 
 
 def update_trajectory(anns, results):
+    """
+    更新轨迹数据，处理模型输出结果并添加到标注中
+    
+    参数:
+        anns: 标注数据列表
+        results: 模型输出结果列表
+    
+    返回:
+        更新后的标注数据列表
+    """
     for (result, ann) in zip(results, anns):
         new_action = autoui_translate_action(result["output"])
         try:
@@ -88,6 +115,15 @@ def update_trajectory(anns, results):
 
 
 def action_dict_to_class(action_dict):
+    """
+    将操作字典转换为AndroidAction类对象
+    
+    参数:
+        action_dict: 包含操作信息的字典
+    
+    返回:
+        AndroidAction对象
+    """
     action_type = action_dict["action_type"]
     
     if action_type == 'DUAL_POINT':
@@ -120,6 +156,15 @@ def action_dict_to_class(action_dict):
 
 
 def autoui_translate_action(raw_action):
+    """
+    解析模型输出的原始操作字符串，转换为AndroidAction对象
+    
+    参数:
+        raw_action: 模型输出的原始操作字符串
+    
+    返回:
+        AndroidAction对象
+    """
     try:
         action_str = raw_action.split("Action Decision: ")[1]
         action_type, touch_point_1, touch_point_2, lift_point_1, lift_point_2, typed_text = action_str.split(", ")
@@ -155,7 +200,18 @@ def autoui_translate_action(raw_action):
 
 
 def to_autoui(act: AndroidAction, all_dict):
+    """
+    将AndroidAction对象转换为字符串表示
+    
+    参数:
+        act: AndroidAction对象
+        all_dict: 布尔值，决定输出格式（完整字典或简化版）
+    
+    返回:
+        操作的字符串表示
+    """
     if all_dict:
+        # 完整字典格式，包含所有参数
         if act.action_type in [ActionType.DualPoint, ActionType.Up, ActionType.Down, ActionType.Left, ActionType.Right]:
             return f'"action_type": "DUAL_POINT", "touch_point": "[{act.touch_point[1]:.4f}, {act.touch_point[0]:.4f}]", "lift_point": "[{act.lift_point[1]:.4f}, {act.lift_point[0]:.4f}]", "typed_text": ""'
         elif act.action_type == ActionType.Type:
@@ -172,6 +228,7 @@ def to_autoui(act: AndroidAction, all_dict):
             print(f"Action {act} not supported yet.")
             return ""
     else:
+        # 简化格式，只包含必要参数
         if act.action_type == ActionType.DualPoint:
             return f'"action_type": "DUAL_POINT", "click_point": "[{act.touch_point[1]:.4f}, {act.touch_point[0]:.4f}]"'
         elif act.action_type == ActionType.Type:
